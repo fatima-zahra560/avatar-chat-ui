@@ -1,0 +1,148 @@
+<!-- index.html  (FRONT = Speech Avatar + UI فقط)
+     Backend RAG = https://capps-backend-q67znilz7ay44.greenmushroom-8064f9e1.eastus2.azurecontainerapps.io/chat
+-->
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Talking Avatar (Speech) + Backend RAG</title>
+
+  <link href="./styles.css" rel="stylesheet" />
+  <script src="https://aka.ms/csspeech/jsbrowserpackageraw"></script>
+
+  <!-- Cache buster to avoid old JS -->
+  <script src="./chat.js?v=20260106-1" defer></script>
+</head>
+
+<body>
+  <h1 class="title-modern">Assistant Virtuel de Maroc Telecom</h1>
+
+  <!-- Minimal config: ONLY Speech (Avatar+STT/TTS) -->
+  <div id="configuration" style="display:none;">
+    <h2 style="background-color: white; width: 320px;">Azure Speech Resource</h2>
+
+    <div id="azureSpeechResource" style="display:flex; align-items:center; flex-wrap:wrap; gap:10px;">
+      <div>
+        <label style="font-size: medium;" for="region">Region:</label>
+        <select id="region" style="font-size: medium;">
+          <option value="westus2">West US 2</option>
+          <option value="westeurope">West Europe</option>
+          <option value="southeastasia">Southeast Asia</option>
+          <option value="southcentralus">South Central US</option>
+          <option value="northeurope">North Europe</option>
+          <option value="swedencentral">Sweden Central</option>
+          <option value="eastus2" selected>East US 2</option>
+        </select>
+      </div>
+
+      <div>
+        <input id="APIKey" type="password" value="4fdXAg71MSXivOaOTtKsiAVFIEVISo2TJMZ6Ur4GMjTzJeW72SdFJQQJ99BJACHYHv6XJ3w3AAAYACOGcnRP" />
+      </div>
+    </div>
+
+    <div style="background-color: white; width: 320px; margin-top:10px;">
+      <input type="checkbox" id="enablePrivateEndpoint" /> Enable Private Endpoint
+    </div>
+
+    <div id="showPrivateEndpointCheckBox" hidden="hidden" style="margin-top:10px;">
+      <label style="font-size: medium;" for="privateEndpoint">Private Endpoint:</label>
+      <input id="privateEndpoint" type="text" size="64" style="font-size: medium;" placeholder="https://{name}.cognitiveservices.azure.com/" />
+    </div>
+
+    <hr/>
+
+    <h2 style="background-color: white; width: 320px;">STT / TTS</h2>
+
+    <label style="font-size: medium;" for="sttLocales">STT Locale(s):</label>
+    <input id="sttLocales" type="text" size="64" style="font-size: medium;" value="en-US,ar-MA,ar-SA,fr-FR" />
+    <br/>
+
+    <label style="font-size: medium;" for="ttsVoice">TTS Voice (FR):</label>
+    <input id="ttsVoice" type="text" size="32" style="font-size: medium;" value="fr-FR-DeniseNeural" />
+    <br/>
+
+    <label style="font-size: medium;" for="customVoiceEndpointId">Custom Voice Endpoint ID (optional):</label>
+    <input id="customVoiceEndpointId" type="text" size="32" style="font-size: medium;" value="" />
+    <br/>
+
+    <div style="background-color: white; width: 320px; margin-top:10px;">
+      <input type="checkbox" id="continuousConversation" /> Continuous Conversation
+    </div>
+
+    <hr/>
+
+    <h2 style="background-color: white; width: 320px;">Avatar</h2>
+
+    <label style="font-size: medium;" for="talkingAvatarCharacter">Avatar Character:</label>
+    <input id="talkingAvatarCharacter" type="text" size="16" style="font-size: medium;" value="Meg" />
+    <br/>
+
+    <label style="font-size: medium;" for="talkingAvatarStyle">Avatar Style:</label>
+    <input id="talkingAvatarStyle" type="text" size="16" style="font-size: medium;" value="business" />
+    <br/>
+
+    <div style="background-color: white; width: 420px; margin-top:10px;">
+      <input type="checkbox" id="photoAvatar" /> Photo Avatar
+      <input type="checkbox" id="customizedAvatar" /> Custom Avatar
+      <input type="checkbox" id="useBuiltInVoice" style="width:12px;" disabled /> Use Built-In Voice
+    </div>
+
+    <div style="background-color: white; width: 220px; margin-top:10px;">
+      <input type="checkbox" id="autoReconnectAvatar" /> Auto Reconnect
+    </div>
+
+    <div style="background-color: white; width: 220px; margin-top:10px;">
+      <input type="checkbox" id="useLocalVideoForIdle" /> Use Local Video for Idle
+    </div>
+
+    <div style="background-color: white; width: 220px; margin-top:10px;">
+      <input type="checkbox" id="showSubtitles" /> Show Subtitles
+    </div>
+  </div>
+
+  <!-- Buttons dock -->
+  <aside id="fiveButtonDock">
+    <button onclick="window.startSession()" class="fab fab-start" id="startSession" title="Start Session">▶</button>
+    <button onclick="window.microphone()" class="fab fab-mic" id="microphone" title="Microphone" disabled></button>
+    <button onclick="window.stopSpeaking()" class="fab fab-stopSpeak" id="stopSpeaking" title="Stop Speaking" disabled>🔇</button>
+    <button onclick="window.clearChatHistory()" class="fab fab-clear" id="clearChatHistory" title="Clear Chat">🧹</button>
+    <button onclick="window.stopSession()" class="fab fab-close" id="stopSession" title="Close Session" disabled>❌️</button>
+  </aside>
+
+  <div id="videoContainer" style="position:relative; max-width:960px;">
+    <div id="overlayArea" style="position:absolute;">
+      <div id="chatHistory"
+           style="border:none; resize:none; background-color:transparent; overflow:hidden;"
+           contenteditable="true"
+           hidden></div>
+    </div>
+
+    <div id="localVideo" hidden>
+      <video src="video/lisa-casual-sitting-idle.mp4" autoplay loop muted></video>
+    </div>
+
+    <div id="remoteVideo" style="margin:0 auto;"></div>
+
+    <div id="subtitles"
+         style="width:100%; text-align:center; color:white;
+                text-shadow:-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+                position:absolute; bottom:5%; z-index:999;"
+         hidden></div>
+  </div>
+
+  <div style="margin-top:5px;">
+    <div id="showTypeMessageCheckbox">
+      <input type="checkbox" id="showTypeMessage" /> Type Message
+    </div>
+
+    <div id="userMessageBox"
+      style="max-width: 940px; min-height: 75px; max-height: 200px; border: 1px solid; overflow-y: scroll; padding: 10px;"
+      hidden contenteditable="true"></div>
+  </div>
+
+  <div>
+    <img id="uploadImgIcon" src="./attachment.jpg" alt="Button" style="cursor:pointer;" hidden />
+  </div>
+</body>
+</html>
